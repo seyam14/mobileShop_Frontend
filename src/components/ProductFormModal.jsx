@@ -24,8 +24,11 @@ const categoryOptions = [
 const ProductFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
   const [formData, setFormData] = useState({
     name: '',
+    model: '',
     category: '',
     price: '',
+    ram: '',
+    rom: '',
     image: '',
   });
 
@@ -33,12 +36,23 @@ const ProductFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
     if (initialData) {
       setFormData({
         name: initialData.name || '',
+        model: initialData.model || '',
         category: initialData.category || '',
         price: initialData.price || '',
+        ram: initialData.ram || '',
+        rom: initialData.rom || '',
         image: initialData.image || '',
       });
     } else {
-      setFormData({ name: '', category: '', price: '', image: '' });
+      setFormData({
+        name: '',
+        model: '',
+        category: '',
+        price: '',
+        ram: '',
+        rom: '',
+        image: '',
+      });
     }
   }, [initialData, isOpen]);
 
@@ -50,18 +64,28 @@ const ProductFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.category || !formData.price || !formData.image) {
-      Swal.fire('Missing Fields', 'Please fill all fields.', 'warning');
+    const { name, model, category, price, image, ram, rom } = formData;
+
+    if (!name || !model || !category || !price || !image) {
+      Swal.fire('Missing Fields', 'Please fill all required fields.', 'warning');
       return;
     }
 
-    const priceNum = parseFloat(formData.price);
+    if ((category === 'Android' || category === 'iPhone') && (!ram || !rom)) {
+      Swal.fire('Missing Fields', 'Please fill RAM and ROM for Android/iPhone.', 'warning');
+      return;
+    }
+
+    const priceNum = parseFloat(price);
     if (isNaN(priceNum) || priceNum < 0) {
       Swal.fire('Invalid Price', 'Please enter a valid price.', 'error');
       return;
     }
 
-    onSubmit({ ...formData, price: priceNum });
+    onSubmit({
+      ...formData,
+      price: priceNum,
+    });
 
     Swal.fire({
       icon: 'success',
@@ -69,7 +93,11 @@ const ProductFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
       showConfirmButton: false,
       timer: 1500,
     });
+
+    onClose(); // close modal after success
   };
+
+  const isSmartphone = formData.category === 'Android' || formData.category === 'iPhone';
 
   return (
     <AnimatePresence>
@@ -93,12 +121,14 @@ const ProductFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
             animate="visible"
             exit="hidden"
             style={{ transformOrigin: "center" }}
-            onClick={e => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-xl font-semibold mb-4 text-center">
               {initialData ? 'Edit Product' : 'Add New Product'}
             </h3>
+
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              {/* Product Name */}
               <input
                 type="text"
                 name="name"
@@ -109,6 +139,18 @@ const ProductFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
                 required
               />
 
+              {/* Model */}
+              <input
+                type="text"
+                name="model"
+                placeholder="Model"
+                value={formData.model}
+                onChange={handleChange}
+                className="input input-bordered w-full"
+                required
+              />
+
+              {/* Category */}
               <select
                 name="category"
                 value={formData.category}
@@ -122,6 +164,31 @@ const ProductFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
                 ))}
               </select>
 
+              {/* RAM and ROM (conditional) */}
+              {isSmartphone && (
+                <>
+                  <input
+                    type="text"
+                    name="ram"
+                    placeholder="RAM (e.g. 4GB)"
+                    value={formData.ram}
+                    onChange={handleChange}
+                    className="input input-bordered w-full"
+                    required
+                  />
+                  <input
+                    type="text"
+                    name="rom"
+                    placeholder="ROM (e.g. 64GB)"
+                    value={formData.rom}
+                    onChange={handleChange}
+                    className="input input-bordered w-full"
+                    required
+                  />
+                </>
+              )}
+
+              {/* Price */}
               <input
                 type="number"
                 name="price"
@@ -134,6 +201,7 @@ const ProductFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
                 required
               />
 
+              {/* Image URL */}
               <input
                 type="url"
                 name="image"
@@ -144,16 +212,28 @@ const ProductFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
                 required
               />
 
-              {/* Live Preview */}
+              {/* Full Image Preview with Info */}
               {formData.image && (
-                <img
-                  src={formData.image}
-                  alt="Preview"
-                  className="w-full h-40 object-contain rounded border"
-                  onError={(e) => e.target.style.display = 'none'}
-                />
+                <div className="w-full border rounded p-2 bg-gray-50">
+                  <img
+                    src={formData.image}
+                    alt="Preview"
+                    className="w-full max-h-60 object-contain rounded mb-2"
+                    onError={(e) => e.target.style.display = 'none'}
+                  />
+                  <div className="text-sm space-y-1 px-1">
+                    {formData.model && <p><strong>Model:</strong> {formData.model}</p>}
+                    {isSmartphone && (
+                      <>
+                        {formData.ram && <p><strong>RAM:</strong> {formData.ram}</p>}
+                        {formData.rom && <p><strong>ROM:</strong> {formData.rom}</p>}
+                      </>
+                    )}
+                  </div>
+                </div>
               )}
 
+              {/* Buttons */}
               <div className="flex justify-end gap-3 mt-2">
                 <button
                   type="button"
