@@ -3,7 +3,6 @@ import api from '../api/api';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import * as jwtDecode from 'jwt-decode'; // Import all as jwtDecode
 
 const Login = () => {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -14,15 +13,13 @@ const Login = () => {
     e.preventDefault();
     try {
       const res = await api.post('/api/login', form);
-      const token = res.data.token;
+      const { token, user } = res.data;
 
-      // Use jwtDecode.default to decode the token
-      const payload = jwtDecode.default(token);
-
-      login(payload, token);
+      // Directly pass user and token to login context
+      login(user, token);
 
       Swal.fire('Welcome', 'Logged in successfully', 'success');
-      navigate('/');
+      navigate('/dashboard');
     } catch (err) {
       console.error(err);
       Swal.fire('Error', 'Invalid credentials', 'error');

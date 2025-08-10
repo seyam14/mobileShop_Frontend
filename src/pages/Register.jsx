@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import api from '../api/api';
 import Swal from 'sweetalert2';
 import { useNavigate, Link } from 'react-router-dom';
-import * as jwtDecode from 'jwt-decode';
 import { useAuth } from '../context/AuthContext';
 
 const Register = () => {
