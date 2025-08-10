@@ -1,239 +1,273 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
-export default function AdminDashboard({ user }) {
-  const [stats, setStats] = useState(null);
+const AdminDashboard = () => {
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalAdmins: 0,
+    totalProducts: 0,
+  });
   const [users, setUsers] = useState([]);
-  const [product, setProduct] = useState({
+  const [loading, setLoading] = useState(true);
+
+  // Modal state
+  const [showModal, setShowModal] = useState(false);
+  const [newProduct, setNewProduct] = useState({
     name: '',
     category: '',
     company: '',
     price: '',
-    image: '',
     description: '',
   });
-  const [loadingProduct, setLoadingProduct] = useState(false);
-  const [productMsg, setProductMsg] = useState(null);
-  const [userMsg, setUserMsg] = useState(null);
+  const [addLoading, setAddLoading] = useState(false);
+  const [addError, setAddError] = useState(null);
+  const [addSuccess, setAddSuccess] = useState(null);
 
   useEffect(() => {
-    fetchStats();
-    fetchUsers();
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const [statsRes, usersRes] = await Promise.all([
+          axios.get('/api/admin/overview', { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } }),
+        ]);
+
+        setStats(statsRes.data);
+
+        if (Array.isArray(usersRes.data)) {
+          setUsers(usersRes.data);
+        } else if (usersRes.data.users && Array.isArray(usersRes.data.users)) {
+          setUsers(usersRes.data.users);
+        } else {
+          setUsers([]);
+          console.error('Users data is not an array:', usersRes.data);
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        setUsers([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
-  async function fetchStats() {
-    try {
-      const res = await axios.get('/api/admin/overview');
-      setStats(res.data);
-    } catch (err) {
-      console.error(err);
-    }
-  }
+  // Handle form inputs for new product modal
+  const handleInputChange = e => {
+    setNewProduct({ ...newProduct, [e.target.name]: e.target.value });
+  };
 
-  async function fetchUsers() {
-    try {
-      const res = await axios.get('/api/admin/users');
-      setUsers(res.data);
-    } catch (err) {
-      console.error(err);
-    }
-  }
-
-  async function promoteUser(id) {
-    setUserMsg(null);
-    try {
-      await axios.patch(`/api/users/${id}/promote`);
-      setUserMsg('User promoted to admin!');
-      fetchUsers();
-    } catch (err) {
-      setUserMsg(err.response?.data?.message || 'Failed to promote user');
-    } finally {
-      setTimeout(() => setUserMsg(null), 3000);
-    }
-  }
-
-  async function createProduct(e) {
+  // Submit new product
+  const handleAddProduct = async e => {
     e.preventDefault();
-    setLoadingProduct(true);
-    setProductMsg(null);
+    setAddLoading(true);
+    setAddError(null);
+    setAddSuccess(null);
+
     try {
-      const payload = {
-        name: product.name,
-        category: product.category,
-        company: product.company,
-        price: Number(product.price),
-        image: product.image,
-        description: product.description,
-      };
-      await axios.post('/api/products', payload);
-      setProductMsg('Product created successfully!');
-      setProduct({
-        name: '',
-        category: '',
-        company: '',
-        price: '',
-        image: '',
-        description: '',
+      const token = localStorage.getItem('token');
+      const res = await axios.post('/api/products', newProduct, {
+        headers: { Authorization: `Bearer ${token}` },
       });
+      setAddSuccess('Product added successfully!');
+      setNewProduct({ name: '', category: '', company: '', price: '', description: '' });
+      // Optionally refresh products or stats here
     } catch (err) {
-      setProductMsg(err.response?.data?.message || 'Failed to create product');
+      setAddError(err.response?.data?.message || 'Failed to add product');
     } finally {
-      setLoadingProduct(false);
-      setTimeout(() => setProductMsg(null), 3000);
+      setAddLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="min-h-screen p-6 bg-gray-50 max-w-6xl mx-auto space-y-8">
+    <div className="min-h-screen bg-gray-100 p-6 md:p-10">
       <motion.h1
+        className="text-3xl font-bold mb-8 text-indigo-700"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-3xl font-semibold"
       >
         Admin Dashboard
       </motion.h1>
 
-      {/* Stats */}
+      {/* Stats Cards */}
       <motion.div
-        className="grid grid-cols-1 sm:grid-cols-4 gap-6"
+        className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-12"
         initial="hidden"
         animate="visible"
         variants={{
-          hidden: { opacity: 0 },
-          visible: { opacity: 1, transition: { staggerChildren: 0.15 } },
+          hidden: { opacity: 0, y: 20 },
+          visible: { opacity: 1, y: 0, transition: { staggerChildren: 0.15 } },
         }}
       >
-        <AdminStatCard title="Total Users" value={stats?.totalUsers || 0} color="indigo" />
-        <AdminStatCard title="Total Admins" value={stats?.totalAdmins || 0} color="purple" />
-        <AdminStatCard title="Total Products" value={stats?.totalProducts || 0} color="teal" />
-        <AdminStatCard title="Total Sold Products" value={stats?.totalSoldProducts || 0} color="green" />
+        {[
+          { label: 'Total Users', value: stats.totalUsers },
+          { label: 'Total Admins', value: stats.totalAdmins },
+          { label: 'Total Products', value: stats.totalProducts },
+        ].map(({ label, value }) => (
+          <motion.div
+            key={label}
+            className="bg-white rounded-lg shadow p-6 flex flex-col items-center justify-center"
+            variants={{
+              hidden: { opacity: 0, y: 20 },
+              visible: { opacity: 1, y: 0 },
+            }}
+            whileHover={{ scale: 1.05 }}
+          >
+            <p className="text-gray-500 font-semibold">{label}</p>
+            <p className="text-4xl font-extrabold text-indigo-600">{value}</p>
+          </motion.div>
+        ))}
       </motion.div>
 
-      {/* Users List */}
-      <section className="bg-white p-6 rounded shadow">
-        <h2 className="text-xl font-semibold mb-4">Users</h2>
-        {userMsg && <div className="mb-4 text-center text-green-600">{userMsg}</div>}
-        <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse border border-gray-200">
-            <thead>
+      {/* Users Table */}
+      <div className="overflow-x-auto bg-white rounded-lg shadow">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-indigo-600 text-white">
+            <tr>
+              <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Name</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Email</th>
+              <th className="px-6 py-3 text-left text-sm font-semibold uppercase">Role</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {loading ? (
               <tr>
-                <th className="border border-gray-300 px-4 py-2 text-left">Name</th>
-                <th className="border border-gray-300 px-4 py-2 text-left">Email</th>
-                <th className="border border-gray-300 px-4 py-2 text-left">Role</th>
-                <th className="border border-gray-300 px-4 py-2">Actions</th>
+                <td colSpan={3} className="text-center py-6 text-gray-500">
+                  Loading users...
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {users.map(u => (
-                <tr key={u._id} className="hover:bg-gray-100">
-                  <td className="border border-gray-300 px-4 py-2">{u.name || '-'}</td>
-                  <td className="border border-gray-300 px-4 py-2">{u.email}</td>
-                  <td className="border border-gray-300 px-4 py-2 capitalize">{u.role}</td>
-                  <td className="border border-gray-300 px-4 py-2 text-center">
-                    {u.role !== 'admin' && (
-                      <button
-                        onClick={() => promoteUser(u._id)}
-                        className="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700 transition"
-                      >
-                        Promote
-                      </button>
-                    )}
-                  </td>
+            ) : Array.isArray(users) && users.length > 0 ? (
+              users.map(user => (
+                <tr
+                  key={user._id}
+                  className="hover:bg-indigo-50 transition-colors cursor-default"
+                >
+                  <td className="px-6 py-4 whitespace-nowrap">{user.name || '-'}</td>
+                  <td className="px-6 py-4 whitespace-nowrap">{user.email}</td>
+                  <td className="px-6 py-4 whitespace-nowrap capitalize">{user.role}</td>
                 </tr>
-              ))}
-              {users.length === 0 && (
-                <tr>
-                  <td colSpan="4" className="text-center py-4">
-                    No users found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={3} className="text-center py-6 text-gray-500">
+                  No users found
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
-      {/* Product Create Form */}
-      <section className="bg-white p-6 rounded shadow max-w-md">
-        <h2 className="text-xl font-semibold mb-4">Add New Product</h2>
-        {productMsg && <div className="mb-4 text-center text-green-600">{productMsg}</div>}
-        <form onSubmit={createProduct} className="space-y-4">
-          <input
-            type="text"
-            placeholder="Name"
-            required
-            value={product.name}
-            onChange={e => setProduct({ ...product, name: e.target.value })}
-            className="w-full px-4 py-2 border rounded"
-          />
-          <input
-            type="text"
-            placeholder="Category"
-            required
-            value={product.category}
-            onChange={e => setProduct({ ...product, category: e.target.value })}
-            className="w-full px-4 py-2 border rounded"
-          />
-          <input
-            type="text"
-            placeholder="Company"
-            required
-            value={product.company}
-            onChange={e => setProduct({ ...product, company: e.target.value })}
-            className="w-full px-4 py-2 border rounded"
-          />
-          <input
-            type="number"
-            placeholder="Price"
-            required
-            min="0"
-            value={product.price}
-            onChange={e => setProduct({ ...product, price: e.target.value })}
-            className="w-full px-4 py-2 border rounded"
-          />
-          <input
-            type="text"
-            placeholder="Image URL"
-            required
-            value={product.image}
-            onChange={e => setProduct({ ...product, image: e.target.value })}
-            className="w-full px-4 py-2 border rounded"
-          />
-          <textarea
-            placeholder="Description"
-            value={product.description}
-            onChange={e => setProduct({ ...product, description: e.target.value })}
-            className="w-full px-4 py-2 border rounded"
-            rows={3}
-          />
-          <button
-            type="submit"
-            disabled={loadingProduct}
-            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
-          >
-            {loadingProduct ? 'Adding...' : 'Add Product'}
-          </button>
-        </form>
-      </section>
+      {/* Add Product Button */}
+      <div className="mt-8 flex justify-end">
+        <button
+          onClick={() => setShowModal(true)}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-md shadow-md transition-colors"
+        >
+          + Add Product
+        </button>
+      </div>
+
+      {/* Modal */}
+      <AnimatePresence>
+        {showModal && (
+          <>
+            <motion.div
+              className="fixed inset-0 bg-black bg-opacity-40 backdrop-blur-sm z-40"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowModal(false)}
+            />
+
+            <motion.div
+              className="fixed top-1/2 left-1/2 w-full max-w-lg p-6 bg-white rounded-lg shadow-lg z-50 -translate-x-1/2 -translate-y-1/2"
+              initial={{ scale: 0.7, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.7, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+            >
+              <h2 className="text-xl font-semibold mb-4 text-indigo-700">Add New Product</h2>
+              <form onSubmit={handleAddProduct} className="space-y-4">
+                <input
+                  name="name"
+                  type="text"
+                  placeholder="Product Name"
+                  value={newProduct.name}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+                <input
+                  name="category"
+                  type="text"
+                  placeholder="Category"
+                  value={newProduct.category}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+                <input
+                  name="company"
+                  type="text"
+                  placeholder="Company"
+                  value={newProduct.company}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+                <input
+                  name="price"
+                  type="number"
+                  placeholder="Price"
+                  value={newProduct.price}
+                  onChange={handleInputChange}
+                  required
+                  min="0"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+                <textarea
+                  name="description"
+                  placeholder="Description"
+                  value={newProduct.description}
+                  onChange={handleInputChange}
+                  rows={3}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                />
+
+                {addError && (
+                  <p className="text-red-600 text-sm font-medium">{addError}</p>
+                )}
+                {addSuccess && (
+                  <p className="text-green-600 text-sm font-medium">{addSuccess}</p>
+                )}
+
+                <div className="flex justify-end gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="px-4 py-2 border border-gray-400 rounded-md hover:bg-gray-100"
+                    disabled={addLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-md"
+                    disabled={addLoading}
+                  >
+                    {addLoading ? 'Adding...' : 'Add Product'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
-}
+};
 
-function AdminStatCard({ title, value, color }) {
-  const colors = {
-    indigo: 'bg-indigo-600',
-    purple: 'bg-purple-600',
-    teal: 'bg-teal-600',
-    green: 'bg-green-600',
-  };
-  return (
-    <motion.div
-      className={`p-6 rounded shadow text-white flex flex-col justify-center items-center ${colors[color]}`}
-      whileHover={{ scale: 1.05 }}
-    >
-      <div className="text-lg font-semibold">{title}</div>
-      <div className="text-3xl font-bold mt-1">{value}</div>
-    </motion.div>
-  );
-}
+export default AdminDashboard;
