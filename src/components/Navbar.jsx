@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { Sun, Moon, ShoppingCart, Menu, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "../context/AuthContext";
 
 const Navbar = () => {
-  const [darkMode, setDarkMode] = useState(
-    localStorage.getItem("theme") === "dark"
-  );
+  const { user, logout } = useAuth();
+  const [darkMode, setDarkMode] = useState(localStorage.getItem("theme") === "dark");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [cartItemCount, setCartItemCount] = useState(0); // Replace with actual cart count
+  const [cartItemCount, setCartItemCount] = useState(0); // Update from CartContext if you want
+  const navigate = useNavigate();
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -16,6 +17,11 @@ const Navbar = () => {
   }, [darkMode]);
 
   const toggleTheme = () => setDarkMode(!darkMode);
+  const handleLogin = () => navigate("/login");
+  const handleLogout = () => {
+    logout();
+    navigate("/");
+  };
 
   const navLinks = [
     { name: "Home", path: "/" },
@@ -33,10 +39,7 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-10">
         <div className="flex justify-between items-center h-16">
           {/* Brand */}
-          <Link
-            to="/"
-            className="text-2xl font-bold text-primary flex items-center gap-1"
-          >
+          <Link to="/" className="text-2xl font-bold text-primary flex items-center gap-1">
             Second<span className="text-secondary">Hand</span>
           </Link>
 
@@ -48,9 +51,7 @@ const Navbar = () => {
                 to={link.path}
                 className={({ isActive }) =>
                   `relative font-medium transition-colors duration-300 hover:text-primary after:content-[''] after:absolute after:w-0 after:h-[2px] after:bg-primary after:left-0 after:-bottom-1 hover:after:w-full after:transition-all ${
-                    isActive
-                      ? "text-primary font-bold after:w-full"
-                      : "text-base-content"
+                    isActive ? "text-primary font-bold after:w-full" : "text-base-content"
                   }`
                 }
               >
@@ -59,10 +60,7 @@ const Navbar = () => {
             ))}
 
             {/* Cart */}
-            <Link
-              to="/cart"
-              className="relative hover:scale-110 transition-transform duration-200"
-            >
+            <Link to="/cart" className="relative hover:scale-110 transition-transform duration-200">
               <ShoppingCart className="w-5 h-5" />
               {cartItemCount > 0 && (
                 <span className="absolute -top-2 -right-2 bg-error text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
@@ -77,27 +75,44 @@ const Navbar = () => {
               onClick={toggleTheme}
               className="transition-all duration-300"
             >
-              {darkMode ? (
-                <Moon className="w-5 h-5 text-yellow-400" />
-              ) : (
-                <Sun className="w-5 h-5 text-orange-500" />
-              )}
+              {darkMode ? <Moon className="w-5 h-5 text-yellow-400" /> : <Sun className="w-5 h-5 text-orange-500" />}
             </motion.button>
 
-            {/* Login */}
-            <Link to="/login" className="btn btn-primary">
-              Login
-            </Link>
+            {/* User Info or Login/Logout */}
+            {user ? (
+              <div className="flex items-center gap-3">
+                {/* Show avatar if available */}
+                {user.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt={user.name || "User Avatar"}
+                    className="w-8 h-8 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-gray-400 flex items-center justify-center text-white uppercase font-bold">
+                    {user.name ? user.name.charAt(0) : "U"}
+                  </div>
+                )}
+
+                {/* Show name */}
+                <span className="font-medium">{user.name}</span>
+
+                {/* Logout button */}
+                <button onClick={handleLogout} className="btn btn-secondary">
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <button onClick={handleLogin} className="btn btn-primary">
+                Login
+              </button>
+            )}
           </div>
 
           {/* Mobile Controls */}
           <div className="md:hidden flex items-center gap-3">
             <motion.button whileTap={{ rotate: 180 }} onClick={toggleTheme}>
-              {darkMode ? (
-                <Moon className="w-5 h-5 text-yellow-400" />
-              ) : (
-                <Sun className="w-5 h-5 text-orange-500" />
-              )}
+              {darkMode ? <Moon className="w-5 h-5 text-yellow-400" /> : <Sun className="w-5 h-5 text-orange-500" />}
             </motion.button>
 
             <Link to="/cart" className="relative">
@@ -109,10 +124,7 @@ const Navbar = () => {
               )}
             </Link>
 
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => setMenuOpen(!menuOpen)}
-            >
+            <motion.button whileTap={{ scale: 0.9 }} onClick={() => setMenuOpen(!menuOpen)}>
               {menuOpen ? <X size={24} /> : <Menu size={24} />}
             </motion.button>
           </div>
@@ -138,22 +150,35 @@ const Navbar = () => {
                   onClick={() => setMenuOpen(false)}
                   className={({ isActive }) =>
                     `block font-medium hover:text-primary transition ${
-                      isActive
-                        ? "text-primary font-bold"
-                        : "text-base-content"
+                      isActive ? "text-primary font-bold" : "text-base-content"
                     }`
                   }
                 >
                   {link.name}
                 </NavLink>
               ))}
-              <Link
-                to="/login"
-                onClick={() => setMenuOpen(false)}
-                className="btn btn-primary w-full"
-              >
-                Login
-              </Link>
+
+              {user ? (
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="btn btn-secondary w-full"
+                >
+                  Logout
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    handleLogin();
+                  }}
+                  className="btn btn-primary w-full"
+                >
+                  Login
+                </button>
+              )}
             </div>
           </motion.div>
         )}

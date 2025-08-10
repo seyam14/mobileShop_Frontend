@@ -1,41 +1,29 @@
-// src/pages/Register.jsx
 import React, { useState } from 'react';
 import api from '../api/api';
 import Swal from 'sweetalert2';
 import { useNavigate, Link } from 'react-router-dom';
-import { jwtDecode } from 'jwt-decode';
+import * as jwtDecode from 'jwt-decode';
 import { useAuth } from '../context/AuthContext';
-import { GoogleLogin } from '@react-oauth/google';
 
 const Register = () => {
-  const [form, setForm] = useState({ email: '', password: '', role: 'user' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'user' });
   const navigate = useNavigate();
   const { login } = useAuth();
 
   const handleLocalRegister = async (e) => {
     e.preventDefault();
+
+    if (!form.name.trim() || !form.email.trim() || !form.password.trim()) {
+      return Swal.fire('Error', 'Name, email and password are required', 'error');
+    }
+
     try {
-      await api.post('/api/register', form);
+      const res = await api.post('/api/register', form);
       Swal.fire('Success', 'Registered successfully', 'success');
       navigate('/login');
     } catch (err) {
-      console.error(err);
-      Swal.fire('Error', 'Registration failed', 'error');
-    }
-  };
-
-  const handleGoogleRegister = async (credentialResponse) => {
-    try {
-      const { data } = await api.post('/api/google-login', {
-        token: credentialResponse.credential,
-      });
-      const payload = jwtDecode(data.token);
-      login(payload, data.token);
-      Swal.fire('Welcome', 'Registered & logged in with Google', 'success');
-      navigate('/');
-    } catch (err) {
-      console.error(err);
-      Swal.fire('Error', 'Google registration failed', 'error');
+      console.error('Register error:', err);
+      Swal.fire('Error', err.response?.data?.message || 'Registration failed', 'error');
     }
   };
 
@@ -44,13 +32,22 @@ const Register = () => {
       <div className="w-full max-w-md bg-white p-6 rounded shadow">
         <h2 className="text-xl font-bold mb-4">Register</h2>
 
-        {/* Local Register Form */}
         <form onSubmit={handleLocalRegister}>
           <input
             className="input input-bordered w-full mb-3"
+            placeholder="Name"
+            type="text"
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            required
+          />
+          <input
+            className="input input-bordered w-full mb-3"
             placeholder="Email"
+            type="email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
+            required
           />
           <input
             className="input input-bordered w-full mb-3"
@@ -58,20 +55,13 @@ const Register = () => {
             placeholder="Password"
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
+            required
           />
-          <button className="btn btn-primary w-full">Register</button>
+          <button className="btn btn-primary w-full" type="submit">
+            Register
+          </button>
         </form>
 
-        {/* OR Divider */}
-        <div className="my-4 text-center text-gray-500">OR</div>
-
-        {/* Google Register Button */}
-        <GoogleLogin
-          onSuccess={handleGoogleRegister}
-          onError={() => Swal.fire('Error', 'Google registration failed', 'error')}
-        />
-
-        {/* Link to Login */}
         <div className="mt-4 text-center">
           <p>
             Already have an account?{' '}
