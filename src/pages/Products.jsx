@@ -1,86 +1,104 @@
-import React, { useState } from 'react';
+// src/pages/Products.js
+import React, { useEffect, useState } from 'react';
+import api from '../api/api';
+import { motion } from 'framer-motion';
+import ProductDetailsModal from '../components/ProductDetailsModal';
 import ProductFormModal from '../components/ProductFormModal';
+import Swal from 'sweetalert2';
+import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 
-const Products = ({ products, onAdd, onDelete, onUpdate }) => {
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editProduct, setEditProduct] = useState(null);
+const Products = () => {
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
 
-  // Open modal to add new product
-  const openAddModal = () => {
-    setEditProduct(null);
-    setModalOpen(true);
+  const { addToCart } = useCart();
+  const { user } = useAuth();
+
+  const fetchProducts = async () => {
+    setLoading(true);
+    try {
+      const res = await api.get('/api/products');
+      setProducts(res.data);
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Error','Failed to load products','error');
+    } finally { setLoading(false); }
   };
 
-  // Open modal to edit existing product
-  const openEditModal = (product) => {
-    setEditProduct(product);
-    setModalOpen(true);
-  };
+  useEffect(() => { fetchProducts(); }, []);
 
-  // Handle modal form submit (add or update)
-  const handleSubmit = (productData) => {
-    if (editProduct) {
-      onUpdate(editProduct._id, productData);
-    } else {
-      onAdd(productData);
+  const openDetails = (p) => { setSelected(p); setDetailsOpen(true); };
+  const openForm = (p=null) => { setEditing(p); setFormOpen(true); };
+
+  const handleDelete = async (id) => {
+    const ok = await Swal.fire({ title: 'Delete?', showCancelButton:true, confirmButtonText:'Delete' });
+    if (!ok.isConfirmed) return;
+    try {
+      await api.delete(`/api/products/${id}`);
+      setProducts(prev => prev.filter(p => p._id !== id));
+      Swal.fire('Deleted','Product removed','success');
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Error','Delete failed','error');
     }
-    setModalOpen(false);
   };
 
   return (
     <div className="container mx-auto p-4">
-      <button
-        onClick={openAddModal}
-        className="btn btn-primary mb-6"
-      >
-        + Add New Product
-      </button>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-3xl font-bold">Products</h1>
+        <div className="flex gap-2">
+          {user && user.role === 'admin' && (
+            <button className="btn btn-primary" onClick={()=>openForm(null)}>+ Add Product</button>
+          )}
+        </div>
+      </div>
 
-      <h2 className="text-3xl font-bold mb-4">Products</h2>
-
-      {products.length === 0 ? (
-        <p className="text-gray-600">No products available.</p>
-      ) : (
+      {loading ? <p>Loading...</p> : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {products.map(product => (
-            <div key={product._id} className="border p-4 rounded shadow relative">
-              <img
-                src={product.image}
-                alt={product.name}
-                className="w-full h-48 object-cover mb-4"
-              />
-              <h3 className="text-xl font-semibold">{product.name}</h3>
-              <p className="text-gray-600">{product.category}</p>
-              <p className="text-lg font-bold">৳{product.price}</p>
-
-              <div className="flex justify-end gap-2 mt-2">
-                <button
-                  onClick={() => openEditModal(product)}
-                  className="btn btn-sm btn-outline"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => {
-                    if (window.confirm(`Delete ${product.name}?`)) {
-                      onDelete(product._id);
-                    }
-                  }}
-                  className="btn btn-sm btn-error"
-                >
-                  Delete
-                </button>
+          {products.map(p => (
+            <motion.div key={p._id} className="bg-white rounded shadow p-4 flex flex-col"
+              whileHover={{ scale: 1.02 }}
+            >
+              <img src={p.image} alt={p.name} className="w-full h-44 object-cover rounded mb-3" />
+              <h3 className="font-semibold">{p.name}</h3>
+              <p className="text-sm text-gray-500">{p.category} • {p.model}</p>
+              <div className="mt-2 flex items-center justify-between">
+                <div>
+                  <p className="text-lg font-bold">৳{p.price}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button className="btn btn-sm btn-primary" onClick={()=>addToCart(p,1)}>Buy</button>
+                  <button className="btn btn-sm btn-outline" onClick={()=>openDetails(p)}>View</button>
+                </div>
               </div>
-            </div>
+
+              <div className="mt-3 flex justify-between items-center">
+                {user && user.role === 'admin' ? (
+                  <>
+                    <button className="btn btn-sm btn-ghost" onClick={()=>openForm(p)}>Edit</button>
+                    <button className="btn btn-sm btn-error" onClick={()=>handleDelete(p._id)}>Delete</button>
+                  </>
+                ) : (
+                  <span className="text-xs text-gray-400">—</span>
+                )}
+              </div>
+            </motion.div>
           ))}
         </div>
       )}
 
+      <ProductDetailsModal isOpen={detailsOpen} product={selected} onClose={()=>setDetailsOpen(false)} />
       <ProductFormModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        onSubmit={handleSubmit}
-        initialData={editProduct}
+        isOpen={formOpen}
+        onClose={()=>{ setFormOpen(false); setEditing(null); fetchProducts(); }}
+        initialData={editing}
+        onSaved={fetchProducts}
       />
     </div>
   );

@@ -1,253 +1,106 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+// src/components/ProductFormModal.js
+import React, { useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import Swal from 'sweetalert2';
+import api from '../api/api';
 
-const backdropVariants = {
-  visible: { opacity: 1 },
-  hidden: { opacity: 0 },
-};
+const categoryOptions = ['Android','iPhone','Button Phone','Cable','Charger','Earphone'];
 
-const modalVariants = {
-  hidden: { opacity: 0, scale: 0.8, y: "-50%", x: "-50%" },
-  visible: { opacity: 1, scale: 1, y: "-50%", x: "-50%" },
-};
-
-const categoryOptions = [
-  'Android',
-  'iPhone',
-  'Button Phone',
-  'Cable',
-  'Charger',
-  'Earphone',
-];
-
-const ProductFormModal = ({ isOpen, onClose, onSubmit, initialData }) => {
-  const [formData, setFormData] = useState({
-    name: '',
-    model: '',
-    category: '',
-    price: '',
-    ram: '',
-    rom: '',
-    image: '',
+const ProductFormModal = ({ isOpen, onClose, initialData, onSaved }) => {
+  const [form, setForm] = useState({
+    name: '', model: '', category: '', price: '', ram: '', rom: '', image: ''
   });
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    if (initialData) {
-      setFormData({
-        name: initialData.name || '',
-        model: initialData.model || '',
-        category: initialData.category || '',
-        price: initialData.price || '',
-        ram: initialData.ram || '',
-        rom: initialData.rom || '',
-        image: initialData.image || '',
-      });
-    } else {
-      setFormData({
-        name: '',
-        model: '',
-        category: '',
-        price: '',
-        ram: '',
-        rom: '',
-        image: '',
-      });
-    }
+    if (initialData) setForm({ ...initialData, price: String(initialData.price) });
+    else setForm({ name:'', model:'', category:'', price:'', ram:'', rom:'', image:'' });
   }, [initialData, isOpen]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+  const handleChange = (e) => setForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
+
+  const handleFile = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    const data = new FormData();
+    data.append('image', file);
+    try {
+      const res = await api.post('/api/upload', data, { headers: { 'Content-Type': 'multipart/form-data' }});
+      setForm(prev => ({ ...prev, image: res.data.url }));
+      Swal.fire('Uploaded','Image uploaded successfully','success');
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Error','Image upload failed','error');
+    } finally { setUploading(false); }
   };
 
-  const handleSubmit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-
-    const { name, model, category, price, image, ram, rom } = formData;
-
+    const { name, model, category, price, image, ram, rom } = form;
     if (!name || !model || !category || !price || !image) {
-      Swal.fire('Missing Fields', 'Please fill all required fields.', 'warning');
-      return;
+      Swal.fire('Missing','Please fill required fields','warning'); return;
     }
-
-    if ((category === 'Android' || category === 'iPhone') && (!ram || !rom)) {
-      Swal.fire('Missing Fields', 'Please fill RAM and ROM for Android/iPhone.', 'warning');
-      return;
+    const payload = { ...form, price: parseFloat(price) };
+    try {
+      if (initialData && initialData._id) {
+        await api.put(`/api/products/${initialData._id}`, payload);
+        Swal.fire('Updated','Product updated','success');
+      } else {
+        await api.post('/api/products', payload);
+        Swal.fire('Added','Product added','success');
+      }
+      onSaved && onSaved();
+      onClose();
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Error','Failed to save product','error');
     }
-
-    const priceNum = parseFloat(price);
-    if (isNaN(priceNum) || priceNum < 0) {
-      Swal.fire('Invalid Price', 'Please enter a valid price.', 'error');
-      return;
-    }
-
-    onSubmit({
-      ...formData,
-      price: priceNum,
-    });
-
-    Swal.fire({
-      icon: 'success',
-      title: initialData ? 'Product Updated!' : 'Product Added!',
-      showConfirmButton: false,
-      timer: 1500,
-    });
-
-    onClose(); // close modal after success
   };
 
-  const isSmartphone = formData.category === 'Android' || formData.category === 'iPhone';
+  const isSmartphone = form.category === 'Android' || form.category === 'iPhone';
 
   return (
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
+          <motion.div className="fixed inset-0 bg-black/50 z-40" onClick={onClose}
+            initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }} />
           <motion.div
-            className="fixed inset-0 bg-black bg-opacity-50 z-40"
-            variants={backdropVariants}
-            initial="hidden"
-            animate="visible"
-            exit="hidden"
-            onClick={onClose}
-          />
-
-          {/* Modal */}
-          <motion.div
-            className="fixed top-1/2 left-1/2 z-50 w-11/12 max-w-md bg-white rounded-lg shadow-lg p-6"
-            variants={modalVariants}
-            initial="hidden"
-            animate="visible"
-            exit="hidden"
-            style={{ transformOrigin: "center" }}
-            onClick={(e) => e.stopPropagation()}
+            className="fixed left-1/2 top-1/2 z-50 w-11/12 md:w-2/3 lg:w-1/2 max-w-2xl bg-white rounded-lg shadow-lg p-5"
+            style={{ transform: 'translate(-50%, -50%)' }}
+            initial={{ scale:0.9, opacity:0 }} animate={{ scale:1, opacity:1 }} exit={{ scale:0.9, opacity:0 }}
+            onClick={(e)=>e.stopPropagation()}
           >
-            <h3 className="text-xl font-semibold mb-4 text-center">
-              {initialData ? 'Edit Product' : 'Add New Product'}
-            </h3>
-
-            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-              {/* Product Name */}
-              <input
-                type="text"
-                name="name"
-                placeholder="Product Name"
-                value={formData.name}
-                onChange={handleChange}
-                className="input input-bordered w-full"
-                required
-              />
-
-              {/* Model */}
-              <input
-                type="text"
-                name="model"
-                placeholder="Model"
-                value={formData.model}
-                onChange={handleChange}
-                className="input input-bordered w-full"
-                required
-              />
-
-              {/* Category */}
-              <select
-                name="category"
-                value={formData.category}
-                onChange={handleChange}
-                className="select select-bordered w-full"
-                required
-              >
-                <option value="" disabled>Select Category</option>
-                {categoryOptions.map((cat, i) => (
-                  <option key={i} value={cat}>{cat}</option>
-                ))}
+            <h3 className="text-xl font-bold mb-3 text-center">{initialData ? 'Edit Product' : 'Add Product'}</h3>
+            <form onSubmit={submit} className="space-y-3">
+              <input name="name" value={form.name} onChange={handleChange} className="input input-bordered w-full" placeholder="Product name" />
+              <input name="model" value={form.model} onChange={handleChange} className="input input-bordered w-full" placeholder="Model" />
+              <select name="category" value={form.category} onChange={handleChange} className="select select-bordered w-full">
+                <option value="">Select Category</option>
+                {categoryOptions.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
 
-              {/* RAM and ROM (conditional) */}
               {isSmartphone && (
-                <>
-                  <input
-                    type="text"
-                    name="ram"
-                    placeholder="RAM (e.g. 4GB)"
-                    value={formData.ram}
-                    onChange={handleChange}
-                    className="input input-bordered w-full"
-                    required
-                  />
-                  <input
-                    type="text"
-                    name="rom"
-                    placeholder="ROM (e.g. 64GB)"
-                    value={formData.rom}
-                    onChange={handleChange}
-                    className="input input-bordered w-full"
-                    required
-                  />
-                </>
-              )}
-
-              {/* Price */}
-              <input
-                type="number"
-                name="price"
-                placeholder="Price (৳)"
-                value={formData.price}
-                onChange={handleChange}
-                className="input input-bordered w-full"
-                min="0"
-                step="0.01"
-                required
-              />
-
-              {/* Image URL */}
-              <input
-                type="url"
-                name="image"
-                placeholder="Image URL"
-                value={formData.image}
-                onChange={handleChange}
-                className="input input-bordered w-full"
-                required
-              />
-
-              {/* Full Image Preview with Info */}
-              {formData.image && (
-                <div className="w-full border rounded p-2 bg-gray-50">
-                  <img
-                    src={formData.image}
-                    alt="Preview"
-                    className="w-full max-h-60 object-contain rounded mb-2"
-                    onError={(e) => e.target.style.display = 'none'}
-                  />
-                  <div className="text-sm space-y-1 px-1">
-                    {formData.model && <p><strong>Model:</strong> {formData.model}</p>}
-                    {isSmartphone && (
-                      <>
-                        {formData.ram && <p><strong>RAM:</strong> {formData.ram}</p>}
-                        {formData.rom && <p><strong>ROM:</strong> {formData.rom}</p>}
-                      </>
-                    )}
-                  </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input name="ram" value={form.ram} onChange={handleChange} className="input input-bordered" placeholder="RAM (e.g. 4GB)" />
+                  <input name="rom" value={form.rom} onChange={handleChange} className="input input-bordered" placeholder="ROM (e.g. 64GB)" />
                 </div>
               )}
 
-              {/* Buttons */}
-              <div className="flex justify-end gap-3 mt-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="btn btn-outline"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                >
-                  {initialData ? 'Update Product' : 'Add Product'}
-                </button>
+              <input name="price" value={form.price} onChange={handleChange} type="number" step="0.01" min="0" className="input input-bordered w-full" placeholder="Price (৳)" />
+              <div>
+                <label className="block text-sm mb-1">Image</label>
+                <div className="flex gap-2">
+                  <input type="file" accept="image/*" onChange={handleFile} />
+                  {uploading && <span className="text-sm">Uploading...</span>}
+                </div>
+                {form.image && <img src={form.image} alt="preview" className="w-full max-h-48 object-contain mt-2 rounded" />}
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={onClose} className="btn btn-outline">Cancel</button>
+                <button type="submit" className="btn btn-primary">{initialData ? 'Update' : 'Add'}</button>
               </div>
             </form>
           </motion.div>
